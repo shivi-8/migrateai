@@ -20,22 +20,35 @@ import uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from schemas import AnalysisResponse, AnalyzeRequest, MigrationPlan, parse_github_url
+from schemas import (
+    AnalysisResponse,
+    AnalyzeRequest,
+    EngineeringResult,
+    MigrationPlan,
+    parse_github_url,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ANALYZER_DIR = Path(os.environ.get("MIGRATEAI_ANALYZER_DIR", REPO_ROOT / "analyzer"))
 SAMPLE_DIR = REPO_ROOT / "tests" / "fixtures" / "sample-app"
 MIGRATION_PLANNER_DIR = REPO_ROOT / "migration_planner"
+AGENTS_DIR = REPO_ROOT / "agents"
+SNAPSHOTS_DIR = REPO_ROOT / "migration_workspaces" / "snapshots"
+SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 if str(MIGRATION_PLANNER_DIR) not in sys.path:
     sys.path.insert(0, str(MIGRATION_PLANNER_DIR))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 try:
     from migration.planner import create_migration_plan
 except ImportError:
     from migration_planner.migration.planner import create_migration_plan
+
+from agents.migration_engineering import MigrationEngineeringAgent
 
 CLONE_TIMEOUT_S = int(os.environ.get("MIGRATEAI_CLONE_TIMEOUT", "120"))
 ANALYZE_TIMEOUT_S = int(os.environ.get("MIGRATEAI_ANALYZE_TIMEOUT", "120"))
@@ -45,7 +58,9 @@ MAX_CONCURRENT_JOBS = 2
 
 _jobs = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
 _store: "OrderedDict[str, AnalysisResponse]" = OrderedDict()
+_engineering_store: "OrderedDict[str, EngineeringResult]" = OrderedDict()
 _store_lock = threading.Lock()
+_engineering_agent = MigrationEngineeringAgent()
 
 
 class OrchestratorError(Exception):
@@ -192,3 +207,47 @@ def analyze_sample(generate_graph: bool = True, scope: str = "relevant") -> Anal
 def get_analysis(analysis_id: str) -> Optional[AnalysisResponse]:
     with _store_lock:
         return _store.get(analysis_id)
+
+
+def run_migration_engineering(
+    analysis_id: str,
+    task_ids: Optional[List[int]] = None,
+    dry_run: bool = True,
+) -> EngineeringResult:
+    """Agent 3: Run migration engineering on the analyzed repository."""
+    analysis = get_analysis(analysis_id)
+    if not analysis:
+        raise OrchestratorError(f"Analysis '{analysis_id}' not found.", 404)
+
+    if not analysis.plan:
+        analysis.plan = generate_migration_plan(analysis)
+
+    # Determine source directory
+    if analysis.source == "sample":
+        source_dir = SAMPLE_DIR
+    else:
+        snapshot = SNAPSHOTS_DIR / analysis_id
+        if not snapshot.is_dir():
+            if not analysis.repository_url:
+                raise OrchestratorError(f"Repository source for '{analysis_id}' is unavailable.", 404)
+            owner, repo = parse_github_url(analysis.repository_url)
+            clone_repo(owner, repo, analysis.branch, snapshot)
+        source_dir = snapshot
+
+    result = _engineering_agent.run(
+        repo_dir=source_dir,
+        analysis_data=analysis.model_dump(by_alias=True),
+        task_ids=task_ids,
+        dry_run=dry_run,
+    )
+
+    with _store_lock:
+        _engineering_store[result.migration_id] = result
+        analysis.engineering = result
+
+    return result
+
+
+def get_migration(migration_id: str) -> Optional[EngineeringResult]:
+    with _store_lock:
+        return _engineering_store.get(migration_id)

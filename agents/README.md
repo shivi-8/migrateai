@@ -1,6 +1,6 @@
 # Agents
 
-* `dependency_graph/` — Agent 1. Implemented in `analyzer/src/graph.ts` (+ `dependencies.ts`), run through `analyzer/dist/cli.js`.
-* `migration_planner/` — Agent 2 (MongoDB → PostgreSQL/Prisma Migration Planner). Implemented in `migration_planner/migration/planner.py`, with rules in `mapping_rules.py` and connected through `backend/` and `frontend/`.
-* `migration_engineering/` — Agent 3. Not started. Will consume Agent 1's graph, Agent 2's plan and its blocker list.
-* `validation/` — Not started.
+* `dependency_graph/` — Agent 1, implemented in `analyzer/src/graph.ts` and `analyzer/src/dependencies.ts`.
+* `migration_planner/` — Agent 2, implemented in `migration_planner/migration/`.
+* `migration_engineering/` — Agent 3, with context building, transformation, schema generation and patch application in `agents/migration_engineering/`.
+* `validation/` — Planned; not yet implemented.

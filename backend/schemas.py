@@ -146,20 +146,6 @@ class Summary(CamelModel):
     duration_ms: int
 
 
-class AnalysisResponse(CamelModel):
-    id: str
-    source: Literal["github", "sample"]
-    repository_url: Optional[str] = None
-    branch: Optional[str] = None
-    created_at: str
-    summary: Summary
-    findings: List[Finding]
-    affected_files: List[AffectedFile]
-    graph: Optional[Graph] = None
-    warnings: List[str]
-    plan: Optional[MigrationPlan] = None
-
-
 # ---------------------------------------------------------------------------
 # Agent 2 — Migration Planner response models
 # ---------------------------------------------------------------------------
@@ -212,3 +198,50 @@ class MigrationPlan(CamelModel):
     warnings: List[MigrationWarning] = []
     tasks: List[MigrationTask] = []
 
+
+# ---------------------------------------------------------------------------
+# Agent 3 — Migration Engineering models
+# ---------------------------------------------------------------------------
+
+
+class FileChange(CamelModel):
+    file: str
+    status: Literal["modified", "created", "skipped"]
+    changes: List[str] = []
+    review_required: bool = False
+    diff: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class EngineeringRequest(BaseModel):
+    task_ids: Optional[List[int]] = None
+    dry_run: bool = True
+    require_approval: bool = True
+
+
+class EngineeringResult(CamelModel):
+    migration_id: str
+    status: Literal["completed", "partial", "dry_run"]
+    files_modified: int = 0
+    files_created: int = 0
+    files_skipped: int = 0
+    files: List[FileChange] = []
+    unresolved_tasks: List[int] = []
+    diff_available: bool = False
+    prisma_schema: Optional[str] = None
+    workspace_dir: Optional[str] = None
+
+
+class AnalysisResponse(CamelModel):
+    id: str
+    source: Literal["github", "sample"]
+    repository_url: Optional[str] = None
+    branch: Optional[str] = None
+    created_at: str
+    summary: Summary
+    findings: List[Finding]
+    affected_files: List[AffectedFile]
+    graph: Optional[Graph] = None
+    warnings: List[str]
+    plan: Optional[MigrationPlan] = None
+    engineering: Optional[EngineeringResult] = None

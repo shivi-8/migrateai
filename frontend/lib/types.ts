@@ -122,6 +122,34 @@ export interface MigrationPlan {
   tasks: MigrationTask[];
 }
 
+export interface FileChange {
+  file: string;
+  status: 'modified' | 'created' | 'skipped';
+  changes: string[];
+  reviewRequired: boolean;
+  diff?: string | null;
+  reason?: string | null;
+}
+
+export interface EngineeringResult {
+  migrationId: string;
+  status: 'completed' | 'partial' | 'dry_run';
+  filesModified: number;
+  filesCreated: number;
+  filesSkipped: number;
+  files: FileChange[];
+  unresolvedTasks: number[];
+  diffAvailable: boolean;
+  prismaSchema?: string | null;
+  workspaceDir?: string | null;
+}
+
+export interface EngineeringRequest {
+  task_ids?: number[] | null;
+  dry_run?: boolean;
+  require_approval?: boolean;
+}
+
 export interface AnalysisResponse {
   id: string;
   source: 'github' | 'sample';
@@ -134,6 +162,7 @@ export interface AnalysisResponse {
   graph: Graph | null;
   warnings: string[];
   plan?: MigrationPlan | null;
+  engineering?: EngineeringResult | null;
 }
 
 export interface AnalyzeRequest {
@@ -142,4 +171,3 @@ export interface AnalyzeRequest {
   generate_graph: boolean;
   graph_scope: 'relevant' | 'all';
 }
-

@@ -11,9 +11,18 @@ interface Props {
   hasResult: boolean;
   migrating?: boolean;
   hasPlan?: boolean;
+  engineeringLoading?: boolean;
+  hasEngineering?: boolean;
 }
 
-export default function PipelineHeader({ loading, hasResult, migrating, hasPlan }: Props) {
+export default function PipelineHeader({
+  loading,
+  hasResult,
+  migrating,
+  hasPlan,
+  engineeringLoading,
+  hasEngineering,
+}: Props) {
   const stages: Stage[] = [
     { name: 'Repository', caption: 'Connect GitHub', state: hasResult ? 'done' : loading ? 'active' : 'ready' },
     { name: 'Scanner', caption: 'Find MongoDB code', state: hasResult ? 'done' : loading ? 'active' : 'ready' },
@@ -23,8 +32,12 @@ export default function PipelineHeader({ loading, hasResult, migrating, hasPlan 
       caption: 'Migration planner',
       state: hasPlan ? 'done' : migrating ? 'active' : hasResult ? 'ready' : 'future',
     },
-    { name: 'Engineering', caption: 'Resolve edge cases', state: 'future' },
-    { name: 'Validation', caption: 'Test the output', state: 'future' },
+    {
+      name: 'Agent 3',
+      caption: 'Code engineering',
+      state: hasEngineering ? 'done' : engineeringLoading ? 'active' : hasPlan ? 'ready' : 'future',
+    },
+    { name: 'Validation', caption: 'Test output', state: 'future' },
   ];
 
   return (

@@ -210,6 +210,23 @@ class Api(unittest.TestCase):
         p = self.client.get(f"/analysis/{body['id']}/plan")
         self.assertEqual(p.status_code, 200)
 
+    def test_engineering_endpoints(self):
+        r = self.client.post('/analyze/sample')
+        analysis_id = r.json()['id']
+        eng = self.client.post(f'/analysis/{analysis_id}/engineer', json={'dry_run': True})
+        self.assertEqual(eng.status_code, 200)
+        data = eng.json()
+        self.assertEqual(data['status'], 'dry_run')
+        self.assertTrue(data['diffAvailable'])
+        self.assertGreater(data['filesCreated'], 0)
+        mig_id = data['migrationId']
+        fetched = self.client.get(f'/migration/{mig_id}')
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.json()['migrationId'], mig_id)
+        diff_res = self.client.get(f'/migration/{mig_id}/diff')
+        self.assertEqual(diff_res.status_code, 200)
+        self.assertIsInstance(diff_res.json(), dict)
+
     def test_validation_and_errors(self):
         self.assertEqual(self.client.post("/analyze", json={"repository_url": "https://evil.com/x/y"}).status_code, 422)
         self.assertEqual(self.client.get("/analysis/missing").status_code, 404)

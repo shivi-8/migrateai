@@ -1,4 +1,10 @@
-import type { AnalysisResponse, AnalyzeRequest, MigrationPlan } from './types';
+import type {
+  AnalysisResponse,
+  AnalyzeRequest,
+  EngineeringRequest,
+  EngineeringResult,
+  MigrationPlan,
+} from './types';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8001';
 
@@ -50,10 +56,25 @@ export function analyzeSample(): Promise<AnalysisResponse> {
   return post<AnalysisResponse>('/analyze/sample');
 }
 
-export function generateMigrationPlan(analysisId: string): Promise<MigrationPlan> {
+export function getMigrationPlan(analysisId: string): Promise<MigrationPlan> {
+  return get<MigrationPlan>(`/analysis/${analysisId}/plan`);
+}
+
+export function runMigrationPlan(analysisId: string): Promise<MigrationPlan> {
   return post<MigrationPlan>(`/analysis/${analysisId}/migrate`);
 }
 
-export function fetchMigrationPlan(analysisId: string): Promise<MigrationPlan> {
-  return get<MigrationPlan>(`/analysis/${analysisId}/plan`);
+export function runEngineering(
+  analysisId: string,
+  request?: EngineeringRequest
+): Promise<EngineeringResult> {
+  return post<EngineeringResult>(`/analysis/${analysisId}/engineer`, request);
+}
+
+export function getMigration(migrationId: string): Promise<EngineeringResult> {
+  return get<EngineeringResult>(`/migration/${migrationId}`);
+}
+
+export function getMigrationDiff(migrationId: string): Promise<Record<string, string>> {
+  return get<Record<string, string>>(`/migration/${migrationId}/diff`);
 }

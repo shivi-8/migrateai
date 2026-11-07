@@ -2,21 +2,28 @@
 
 import { useMemo, useState } from 'react';
 import DependencyGraph from '@/components/DependencyGraph';
+import EngineeringView from '@/components/EngineeringView';
 import FindingsTable from '@/components/FindingsTable';
 import MigrationPlanView from '@/components/MigrationPlanView';
 import NodeDetails from '@/components/NodeDetails';
 import PipelineHeader from '@/components/PipelineHeader';
 import RepositoryForm from '@/components/RepositoryForm';
 import SummaryCards from '@/components/SummaryCards';
-import { analyzeRepository, analyzeSample, generateMigrationPlan } from '@/lib/api';
-import type { AnalysisResponse, AnalyzeRequest, MigrationPlan } from '@/lib/types';
+import {
+  analyzeRepository,
+  analyzeSample,
+  runEngineering,
+  runMigrationPlan,
+} from '@/lib/api';
+import type { AnalysisResponse, AnalyzeRequest, EngineeringResult, MigrationPlan } from '@/lib/types';
 
-type Tab = 'graph' | 'findings' | 'plan';
+type Tab = 'graph' | 'findings' | 'plan' | 'engineering';
 
 export default function Home() {
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [engineeringLoading, setEngineeringLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('graph');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,13 +48,28 @@ export default function Home() {
     setMigrating(true);
     setError(null);
     try {
-      const plan = await generateMigrationPlan(result.id);
+      const plan = await runMigrationPlan(result.id);
       setResult((prev) => (prev ? { ...prev, plan } : prev));
       setTab('plan');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate migration plan.');
     } finally {
       setMigrating(false);
+    }
+  }
+
+  async function handleRunEngineering(dryRun: boolean = true) {
+    if (!result) return;
+    setEngineeringLoading(true);
+    setError(null);
+    try {
+      const engResult = await runEngineering(result.id, { dry_run: dryRun });
+      setResult((prev) => (prev ? { ...prev, engineering: engResult } : prev));
+      setTab('engineering');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to run migration engineering.');
+    } finally {
+      setEngineeringLoading(false);
     }
   }
 
@@ -73,7 +95,7 @@ export default function Home() {
           <p className="text-sm text-zinc-400">AI-powered software migration workspace</p>
         </div>
         <span className="rounded-full border border-violet/50 bg-violet-faint px-3 py-1 font-mono text-[11px] text-violet-soft">
-          scanner + Agent 1 (Graph) + Agent 2 (Planner)
+          Agent 1 (Graph) + Agent 2 (Plan) + Agent 3 (Engineering)
         </span>
       </header>
 
@@ -82,6 +104,8 @@ export default function Home() {
         hasResult={result !== null}
         migrating={migrating}
         hasPlan={Boolean(result?.plan)}
+        engineeringLoading={engineeringLoading}
+        hasEngineering={Boolean(result?.engineering)}
       />
 
       <RepositoryForm
@@ -113,18 +137,25 @@ export default function Home() {
               </span>
             </div>
 
-            <button
-              onClick={handleGeneratePlan}
-              disabled={migrating}
-              className="inline-flex items-center gap-1.5 rounded-md border border-violet/60 bg-violet-faint px-3 py-1 font-mono text-xs text-violet-soft hover:bg-violet/20 transition disabled:opacity-50"
-            >
-              <span className={migrating ? 'animate-spin' : ''}>✦</span>
-              {migrating
-                ? 'Planning with Agent 2…'
-                : result.plan
-                ? 'Re-run Agent 2 Planner'
-                : 'Run Agent 2 Migration Planner'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleGeneratePlan}
+                disabled={migrating}
+                className="inline-flex items-center gap-1.5 rounded-md border border-violet/60 bg-violet-faint px-3 py-1 font-mono text-xs text-violet-soft hover:bg-violet/20 transition disabled:opacity-50"
+              >
+                <span className={migrating ? 'animate-spin' : ''}>✦</span>
+                {migrating ? 'Planning…' : 'Agent 2 Plan'}
+              </button>
+
+              <button
+                onClick={() => handleRunEngineering(true)}
+                disabled={engineeringLoading}
+                className="inline-flex items-center gap-1.5 rounded-md border border-neon/60 bg-neon-faint px-3 py-1 font-mono text-xs text-neon hover:bg-neon/20 transition disabled:opacity-50"
+              >
+                <span className={engineeringLoading ? 'animate-spin' : ''}>⚙</span>
+                {engineeringLoading ? 'Engineering…' : 'Agent 3 Engineering'}
+              </button>
+            </div>
           </div>
 
           <SummaryCards summary={result.summary} warnings={result.warnings} />
@@ -137,7 +168,10 @@ export default function Home() {
               Findings ({result.summary.totalFindings})
             </TabButton>
             <TabButton active={tab === 'plan'} onClick={() => setTab('plan')}>
-              Migration Plan {result.plan ? `(${result.plan.summary.tasksCreated} tasks)` : ''}
+              Migration Plan {result.plan ? `(${result.plan.summary.tasksCreated})` : ''}
+            </TabButton>
+            <TabButton active={tab === 'engineering'} onClick={() => setTab('engineering')}>
+              Migration Engineering {result.engineering ? `(${result.engineering.status})` : ''}
             </TabButton>
           </div>
 
@@ -152,7 +186,18 @@ export default function Home() {
 
           {tab === 'plan' && (
             result.plan ? (
-              <MigrationPlanView plan={result.plan} onOpenFile={openFile} />
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => handleRunEngineering(true)}
+                    disabled={engineeringLoading}
+                    className="rounded-lg bg-neon px-4 py-2 text-xs font-semibold text-ink-950 hover:brightness-110 shadow-neon"
+                  >
+                    Proceed to Agent 3 (Migration Engineering) →
+                  </button>
+                </div>
+                <MigrationPlanView plan={result.plan} onOpenFile={openFile} />
+              </div>
             ) : (
               <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-8 text-center space-y-3">
                 <p className="text-zinc-400 text-sm">Agent 2 (Migration Planner) has not generated a plan for this analysis yet.</p>
@@ -165,6 +210,14 @@ export default function Home() {
                 </button>
               </div>
             )
+          )}
+
+          {tab === 'engineering' && (
+            <EngineeringView
+              result={result.engineering || null}
+              loading={engineeringLoading}
+              onRunEngineering={handleRunEngineering}
+            />
           )}
         </>
       )}
@@ -189,7 +242,7 @@ function TabButton({
       disabled={disabled}
       className={[
         '-mb-px border-b-2 px-4 py-2 text-sm transition',
-        active ? 'border-violet text-violet-soft' : 'border-transparent text-zinc-400 hover:text-zinc-200',
+        active ? 'border-violet text-violet-soft font-semibold' : 'border-transparent text-zinc-400 hover:text-zinc-200',
         disabled ? 'cursor-not-allowed opacity-40' : '',
       ].join(' ')}
     >

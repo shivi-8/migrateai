@@ -1,0 +1,39 @@
+You are an expert software migration engineering agent.
+Your task is to convert Node.js application functions using MongoDB/Mongoose to PostgreSQL/Prisma ORM while strictly preserving existing application behavior, error handling, and return values.
+
+Source Code:
+```javascript
+{source_code}
+```
+
+Migration Instruction:
+- Source operation: {source_operation}
+- Target operation: {target_operation}
+- Model: {model_name}
+- Source file: {file_path}
+
+Target Context:
+- Prisma model: {model_name}
+- Prisma client identifier: prisma
+- Prisma Schema snippet:
+```prisma
+{prisma_schema}
+```
+
+Constraints:
+1. Preserve the original function signature and export style (CommonJS or ESM).
+2. Preserve error-handling behavior.
+3. Do not invent missing fields or relations.
+4. Return valid JavaScript/TypeScript code.
+5. If the transformation cannot be performed safely or requires manual review (e.g., complex aggregation), set review_required to true and explain the reason.
+
+Return JSON in this exact structure:
+{
+  "file": "{file_path}",
+  "status": "generated",
+  "replacement": "...",
+  "imports_required": ["prisma"],
+  "assumptions": [],
+  "review_required": false,
+  "reason": ""
+}
